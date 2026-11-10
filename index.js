@@ -19,6 +19,8 @@ async function hub(path, body = {}) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+  }).catch((err) => {
+    throw new Error(`Cannot reach the Hubstudio local API at ${API} (${err.cause?.code || err.message}). Is the Hubstudio client running and logged in?`);
   });
   const json = await res.json().catch(() => null);
   if (!json) throw new Error(`Hubstudio API ${path}: HTTP ${res.status}, non-JSON response`);
@@ -122,7 +124,19 @@ const targetArgs = {
   exact: z.boolean().optional().describe('Exact text match (default false)'),
 };
 
-const server = new McpServer({ name: 'hubstudio', version: '0.1.0' });
+// Sent to every MCP client on connect, so agents know the workflow without reading the README.
+const INSTRUCTIONS = `Controls Hubstudio fingerprint-browser environments. One environment is one isolated browser profile, usually holding one logged-in account.
+
+Typical flow: hub_list_envs (find the environment) -> hub_open_env (launch and connect; it becomes the active environment) -> page tools (hub_navigate, hub_get_text, hub_list_interactive, hub_click, hub_fill, ...) -> hub_close_env when the task is done.
+
+- Refer to an environment by containerCode, exact name, or serialNumber. Page tools take an optional "env"; without it they act on the active environment, so several environments can be driven in one session without switching.
+- On an unfamiliar page, call hub_list_interactive or hub_get_text to find targets instead of guessing selectors. "text" works best for links and buttons, "selector" for inputs.
+- Pages load through each environment's proxy and can be slow. Wait for an element with hub_wait rather than a fixed delay, and raise timeoutMs before concluding a page is broken.
+- Each hub_open_env counts against the Hubstudio account's open quota, and the local API allows about 100 calls per minute per endpoint. Reuse connected environments (hub_connected_envs) instead of reopening them.
+- Environments hold real accounts. Open only the ones the user asked for, and confirm with the user before anything that submits, publishes, pays, or deletes.
+- Errors: "Cannot reach the Hubstudio local API" means the Hubstudio client is not running or not logged in. "code 26" means the plan does not allow opening environments via API. "already open in the Hubstudio client" means the user must close that environment in the client first; then retry.`;
+
+const server = new McpServer({ name: 'hubstudio', version: '0.1.0' }, { instructions: INSTRUCTIONS });
 
 // ---------- Environment management ----------
 

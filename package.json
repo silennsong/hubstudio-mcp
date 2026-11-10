@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "hubstudio-mcp": "index.js"
